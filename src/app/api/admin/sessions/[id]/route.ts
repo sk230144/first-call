@@ -72,3 +72,55 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
   return NextResponse.json({ ok: true });
 }
+
+/**
+ * DELETE /api/admin/sessions/[id] — permanently remove a session (admin only).
+ * Removes all Storage objects under sessions/{id}/ (segments + final video),
+ * then deletes the sessions row. Every FK table (session_segments,
+ * session_takes, session_answers, session_events, stitch_jobs,
+ * webhook_deliveries) cascades via ON DELETE CASCADE; recording_lifecycle_events
+ * sets session_id to NULL; audit_logs is untouched (immutable, no FK).
+ */
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const user = await getStaffUser();
+  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
+  const db = supabaseAdmin();
+  const { data: before } = await db.from('sessions').select('id, customer_name, status').eq('id', params.id).single();
+  if (!before) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+
+  const prefix = `sessions/${params.id}`;
+  const objects = await listAllStorageObjects(db, 'recordings', prefix);
+  if (objects.length > 0) {
+    const { error: removeErr } = await db.storage.from('recordings').remove(objects);
+    if (removeErr) return NextResponse.json({ error: `storage_cleanup_failed: ${removeErr.message}` }, { status: 500 });
+  }
+
+  const { error } = await db.from('sessions').delete().eq('id', params.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logAudit({
+    action: 'session.deleted', entityType: 'session', entityId: params.id,
+    oldValues: before, actorId: user.id, actorType: 'user',
+  });
+  return NextResponse.json({ ok: true });
+}
+
+/** Recursively lists every object under a Storage prefix (folders need per-level listing). */
+async function listAllStorageObjects(
+  db: ReturnType<typeof supabaseAdmin>, bucket: string, prefix: string
+): Promise<string[]> {
+  const { data: entries, error } = await db.storage.from(bucket).list(prefix, { limit: 1000 });
+  if (error || !entries) return [];
+  const paths: string[] = [];
+  for (const entry of entries) {
+    const fullPath = `${prefix}/${entry.name}`;
+    if (entry.id === null) {
+      // No file id means this entry is a folder — recurse into it.
+      paths.push(...await listAllStorageObjects(db, bucket, fullPath));
+    } else {
+      paths.push(fullPath);
+    }
+  }
+  return paths;
+}

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { CallRecorder } from '@/lib/call/recorder';
 import { UploadQueue, registerBackgroundSync } from '@/lib/call/uploadQueue';
+import { AnswerTranscriber, isSpeechRecognitionSupported, speakQuestion, stopSpeaking } from '@/lib/call/voice';
 
 type Question = { id: string; order: number; text: string; video_url: string | null };
 type Payload = {
@@ -20,6 +21,48 @@ type Payload = {
 };
 
 type Phase = 'loading' | 'error' | 'consent' | 'setup' | 'recording' | 'finalizing' | 'done';
+
+const CALL_PAGE_CSS = `
+        .call-page {
+          min-height: 100vh; color: #f0f4f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+          background: radial-gradient(1100px 500px at 15% -10%, rgba(0,194,212,0.10), transparent 60%), #0a1420;
+        }
+        .badge-mark {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 48px; height: 48px; border-radius: 14px; margin-bottom: 20px;
+          font-weight: 800; font-size: 18px; color: #06282c;
+          background: linear-gradient(135deg, #22d8ea, #00c2d4);
+          box-shadow: 0 6px 20px rgba(0,194,212,0.35);
+        }
+        .badge-mark.done { background: linear-gradient(135deg, #4ade80, #22c55e); box-shadow: 0 6px 20px rgba(34,197,94,0.35); }
+        .spinner {
+          width: 32px; height: 32px; border-radius: 50%; margin-bottom: 16px;
+          border: 3px solid rgba(0,194,212,0.2); border-top-color: #00c2d4;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .stage { display: flex; flex-direction: column; align-items: center; padding: 24px; gap: 16px; }
+        .composite { width: min(960px, 100%); border-radius: 14px; border: 1px solid #223d5e; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
+        .controls { text-align: center; max-width: 720px; width: 100%; }
+        .progress-track { width: 100%; max-width: 320px; height: 4px; border-radius: 100px; background: #1a3350; margin: 0 auto 12px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #00c2d4, #22d8ea); transition: width 0.3s ease; border-radius: 100px; }
+        .progress { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8ba4b8; margin-bottom: 8px; font-weight: 600; }
+        .question-text { font-size: 21px; font-weight: 600; margin-bottom: 18px; letter-spacing: -0.01em; }
+        .listening-hint { font-size: 13px; color: #8ba4b8; margin: -10px 0 18px; }
+        .answer-row { display: flex; gap: 16px; justify-content: center; }
+        .btn-yes, .btn-no, .btn-primary {
+          font-size: 16px; font-weight: 700; padding: 13px 52px; border-radius: 10px; border: none; cursor: pointer;
+          transition: transform 0.08s ease, filter 0.15s ease, box-shadow 0.15s ease;
+        }
+        .btn-yes:active, .btn-no:active, .btn-primary:active { transform: translateY(1px); }
+        .btn-yes:hover, .btn-no:hover, .btn-primary:hover { filter: brightness(1.08); }
+        .btn-yes { background: #22c55e; color: #06240f; box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
+        .btn-no { background: #ef4444; color: #2a0505; box-shadow: 0 4px 16px rgba(239,68,68,0.3); }
+        .btn-primary { background: linear-gradient(135deg, #22d8ea, #00c2d4); color: #06282c; margin-top: 20px; box-shadow: 0 4px 16px rgba(0,194,212,0.3); }
+        .rec-dot { margin-top: 18px; color: #ef4444; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
+        .consent-text { background: #142943; border: 1px solid #223d5e; border-radius: 10px; padding: 18px; margin: 18px 0; line-height: 1.6; }
+        .muted { color: #8ba4b8; font-size: 14px; }
+      `;
 
 export default function SessionCallPage() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +82,8 @@ export default function SessionCallPage() {
   const queueRef = useRef<UploadQueue | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const correlationId = useRef<string>('');
+  const transcriberRef = useRef<AnswerTranscriber | null>(null);
+  const liveTranscriptRef = useRef('');
 
   // ---------- helpers ----------
   const api = useCallback(
@@ -179,6 +224,25 @@ export default function SessionCallPage() {
     telemetry('compositor_health', { ...r.health, question_id: currentQuestion?.id });
   }, [phase, questionIdx, currentQuestion, telemetry]);
 
+  // speak the question aloud, then listen for the spoken answer — both are
+  // best-effort: the mic already being recorded picks up the TTS audio
+  // ambiently, and the transcript rides along with the yes/no button press.
+  useEffect(() => {
+    if (phase !== 'recording' || !currentQuestion) return;
+    liveTranscriptRef.current = '';
+    speakQuestion(currentQuestion.text, payload?.template.language);
+
+    const transcriber = new AnswerTranscriber();
+    transcriber.onUpdate = (t) => { liveTranscriptRef.current = t; };
+    transcriber.start(payload?.template.language);
+    transcriberRef.current = transcriber;
+
+    return () => {
+      transcriberRef.current = null;
+      transcriber.stop();
+    };
+  }, [phase, currentQuestion, payload]);
+
   // Warn before leaving while segments are still uploading — the queue survives
   // a refresh/close via IndexedDB + Background Sync, but not every browser
   // supports Background Sync (notably iOS Safari), so this is the safety net
@@ -197,8 +261,10 @@ export default function SessionCallPage() {
 
   async function answer(value: 'yes' | 'no') {
     if (!currentQuestion) return;
+    stopSpeaking();
+    const transcript = transcriberRef.current?.stop() || liveTranscriptRef.current || null;
     // Answer saved IMMEDIATELY — not at the end
-    await api('/answer', { question_id: currentQuestion.id, answer: value });
+    await api('/answer', { question_id: currentQuestion.id, answer: value, transcript });
     recorderRef.current?.flush(); // snapshot: flush current segment as backup
     if (questionIdx + 1 < questions.length) {
       setQuestionIdx(questionIdx + 1);
@@ -210,6 +276,8 @@ export default function SessionCallPage() {
   // ---------- finish: stop → wait for queue → settled barrier ----------
   async function finishCall() {
     setPhase('finalizing');
+    stopSpeaking();
+    transcriberRef.current?.stop();
     const recorder = recorderRef.current!;
     const queue = queueRef.current!;
     recorder.setCaption('');
@@ -271,6 +339,7 @@ export default function SessionCallPage() {
             </div>
             <div className="progress">Question {questionIdx + 1} of {questions.length}</div>
             <div className="question-text">{currentQuestion.text}</div>
+            {isSpeechRecognitionSupported && <div className="listening-hint">🎙 Listening — you can also just say your answer</div>}
             <div className="answer-row">
               <button className="btn-yes" onClick={() => answer('yes')}>Yes</button>
               <button className="btn-no" onClick={() => answer('no')}>No</button>
@@ -295,46 +364,10 @@ export default function SessionCallPage() {
         </Center>
       )}
 
-      <style>{`
-        .call-page {
-          min-height: 100vh; color: #f0f4f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-          background: radial-gradient(1100px 500px at 15% -10%, rgba(0,194,212,0.10), transparent 60%), #0a1420;
-        }
-        .badge-mark {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 48px; height: 48px; border-radius: 14px; margin-bottom: 20px;
-          font-weight: 800; font-size: 18px; color: #06282c;
-          background: linear-gradient(135deg, #22d8ea, #00c2d4);
-          box-shadow: 0 6px 20px rgba(0,194,212,0.35);
-        }
-        .badge-mark.done { background: linear-gradient(135deg, #4ade80, #22c55e); box-shadow: 0 6px 20px rgba(34,197,94,0.35); }
-        .spinner {
-          width: 32px; height: 32px; border-radius: 50%; margin-bottom: 16px;
-          border: 3px solid rgba(0,194,212,0.2); border-top-color: #00c2d4;
-          animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .stage { display: flex; flex-direction: column; align-items: center; padding: 24px; gap: 16px; }
-        .composite { width: min(960px, 100%); border-radius: 14px; border: 1px solid #223d5e; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
-        .controls { text-align: center; max-width: 720px; width: 100%; }
-        .progress-track { width: 100%; max-width: 320px; height: 4px; border-radius: 100px; background: #1a3350; margin: 0 auto 12px; overflow: hidden; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, #00c2d4, #22d8ea); transition: width 0.3s ease; border-radius: 100px; }
-        .progress { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8ba4b8; margin-bottom: 8px; font-weight: 600; }
-        .question-text { font-size: 21px; font-weight: 600; margin-bottom: 18px; letter-spacing: -0.01em; }
-        .answer-row { display: flex; gap: 16px; justify-content: center; }
-        .btn-yes, .btn-no, .btn-primary {
-          font-size: 16px; font-weight: 700; padding: 13px 52px; border-radius: 10px; border: none; cursor: pointer;
-          transition: transform 0.08s ease, filter 0.15s ease, box-shadow 0.15s ease;
-        }
-        .btn-yes:active, .btn-no:active, .btn-primary:active { transform: translateY(1px); }
-        .btn-yes:hover, .btn-no:hover, .btn-primary:hover { filter: brightness(1.08); }
-        .btn-yes { background: #22c55e; color: #06240f; box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
-        .btn-no { background: #ef4444; color: #2a0505; box-shadow: 0 4px 16px rgba(239,68,68,0.3); }
-        .btn-primary { background: linear-gradient(135deg, #22d8ea, #00c2d4); color: #06282c; margin-top: 20px; box-shadow: 0 4px 16px rgba(0,194,212,0.3); }
-        .rec-dot { margin-top: 18px; color: #ef4444; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
-        .consent-text { background: #142943; border: 1px solid #223d5e; border-radius: 10px; padding: 18px; margin: 18px 0; line-height: 1.6; }
-        .muted { color: #8ba4b8; font-size: 14px; }
-      `}</style>
+      {/* dangerouslySetInnerHTML, not a text child: React escapes quotes inside
+          a <style> text child on the server (&quot;) but not on the client,
+          which trips a hydration mismatch. Raw HTML is emitted identically by both. */}
+      <style dangerouslySetInnerHTML={{ __html: CALL_PAGE_CSS }} />
     </main>
   );
 }

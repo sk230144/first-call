@@ -9,14 +9,31 @@ import TopBar from '@/components/TopBar';
 export default function ReviewList() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [filter, setFilter] = useState('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
     fetch('/api/sessions').then(async (r) => {
       if (r.status === 401) { window.location.href = '/login'; return; }
       const d = await r.json();
       setSessions(d.sessions ?? []);
     });
-  }, []);
+  }
+
+  useEffect(load, []);
+
+  async function deleteSession(id: string, customerName: string) {
+    if (!confirm(`Permanently delete the session for "${customerName}"? This removes the recording and all data — this cannot be undone.`)) return;
+    setBusyId(id);
+    const r = await fetch(`/api/admin/sessions/${id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert(`Failed to delete: ${err.error ?? r.statusText}`);
+      setBusyId(null);
+      return;
+    }
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    setBusyId(null);
+  }
 
   const filtered = filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
 
@@ -40,7 +57,7 @@ export default function ReviewList() {
         </div>
         <div className="card flush">
           <table className="grid" style={{ border: 'none', borderRadius: 0 }}>
-            <thead><tr><th>Customer</th><th>Status</th><th>Assembly</th><th>Video</th><th>Completed</th><th></th></tr></thead>
+            <thead><tr><th>Customer</th><th>Status</th><th>Assembly</th><th>Video</th><th>Completed</th><th></th><th></th></tr></thead>
             <tbody>
               {filtered.map((s) => (
                 <tr key={s.id}>
@@ -50,10 +67,18 @@ export default function ReviewList() {
                   <td>{s.video_url ? '✅' : '—'}</td>
                   <td className="muted">{s.completed_at ? new Date(s.completed_at).toLocaleString() : '—'}</td>
                   <td><Link href={`/admin/review/${s.id}`}>Open →</Link></td>
+                  <td>
+                    <button
+                      className="danger" disabled={busyId === s.id}
+                      onClick={() => deleteSession(s.id, s.customer_name)}
+                    >
+                      {busyId === s.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={6}><div className="empty-state">Nothing to review.</div></td></tr>
+                <tr><td colSpan={7}><div className="empty-state">Nothing to review.</div></td></tr>
               )}
             </tbody>
           </table>
