@@ -62,6 +62,30 @@ const CALL_PAGE_CSS = `
         .rec-dot { margin-top: 18px; color: #ef4444; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
         .consent-text { background: #142943; border: 1px solid #223d5e; border-radius: 10px; padding: 18px; margin: 18px 0; line-height: 1.6; }
         .muted { color: #8ba4b8; font-size: 14px; }
+        .center-pane {
+          min-height: 100vh;
+          min-height: 100dvh; /* dvh excludes mobile browser chrome; vh is the fallback */
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center; text-align: center;
+          padding: 24px; max-width: 560px; margin: 0 auto;
+        }
+        .center-pane h1 { font-size: 25px; letter-spacing: -0.02em; }
+
+        @media (max-width: 640px) {
+          .center-pane { padding: 20px 16px; }
+          .center-pane h1 { font-size: 21px; }
+          .stage { padding: 12px; gap: 12px; }
+          .composite { border-radius: 10px; }
+          .question-text { font-size: 18px; margin-bottom: 14px; }
+          .progress { font-size: 11px; }
+          .listening-hint { font-size: 12px; margin: -6px 0 14px; }
+          /* full-width stacked answer buttons — easier to hit one-handed */
+          .answer-row { flex-direction: column; gap: 10px; }
+          .btn-yes, .btn-no { width: 100%; padding: 15px 24px; font-size: 17px; }
+          .btn-primary { width: 100%; padding: 15px 24px; }
+          .consent-text { padding: 14px; font-size: 14px; }
+          .rec-dot { margin-top: 14px; }
+        }
       `;
 
 export default function SessionCallPage() {
@@ -394,13 +418,5 @@ function getMediaErrorMessage(e: any): string {
 }
 
 function Center({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-      padding: 24, maxWidth: 560, margin: '0 auto',
-    }}>
-      {children}
-    </div>
-  );
+  return <div className="center-pane">{children}</div>;
 }

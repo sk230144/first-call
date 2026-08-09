@@ -204,3 +204,125 @@ video.player { width: 100%; border-radius: var(--radius); border: 1px solid var(
 }
 .stat-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 600; }
 .stat-tile .value { font-size: 26px; font-weight: 700; margin-top: 6px; letter-spacing: -0.02em; }
+
+/* ---------- mobile bar + drawer chrome (desktop: hidden) ---------- */
+.mobile-bar { display: none; }
+.sidebar-overlay { display: none; }
+.sidebar-close { display: none; }
+.sidebar-head { display: contents; }
+
+/* ============================================================
+   Responsive — the sidebar becomes a slide-in drawer, wide
+   tables scroll horizontally instead of overflowing the page.
+   ============================================================ */
+@media (max-width: 860px) {
+  .app-layout { display: block; }
+
+  .mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    padding: 10px 14px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .mobile-bar .brand { display: flex; align-items: center; gap: 10px; }
+  .mobile-bar .brand-mark {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #0891b2);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px; color: #06282c;
+    flex-shrink: 0;
+  }
+  .mobile-bar .brand-text { font-weight: 700; font-size: 14px; }
+
+  .hamburger {
+    width: 40px; height: 40px;
+    display: inline-flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 5px;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 0;
+    flex-shrink: 0;
+  }
+  .hamburger span {
+    display: block; width: 17px; height: 2px; border-radius: 2px;
+    background: var(--text);
+  }
+
+  /* off-canvas drawer */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    height: 100dvh;
+    width: min(82vw, 300px);
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: none;
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 10px 24px;
+  }
+  .sidebar-head .brand { padding: 0; }
+  .sidebar-close {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text2); font-size: 14px; line-height: 1;
+    width: 32px; height: 32px; border-radius: var(--radius-sm);
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; flex-shrink: 0;
+  }
+
+  /* larger tap targets in the drawer */
+  .sidebar nav a { padding: 12px 12px; font-size: 15px; }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(4, 10, 18, 0.62);
+    backdrop-filter: blur(2px);
+  }
+
+  .shell { padding: 24px 18px 72px; }
+  .shell.narrow { padding-top: 48px; }
+
+  /* wide tables: scroll the table, not the page */
+  .card.flush { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.grid { min-width: 640px; }
+
+  .page-header.row { align-items: flex-start; }
+  h1 { font-size: 22px; }
+  video.player { border-radius: var(--radius-sm); }
+}
+
+@media (max-width: 560px) {
+  .shell { padding: 20px 14px 64px; }
+  .card { padding: 18px 16px; }
+  .stat-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+
+  /* stack action rows so buttons don't squash */
+  .row > button,
+  .row > a > button { flex: 1 1 auto; }
+
+  /* inputs at >=16px so iOS Safari doesn't zoom on focus */
+  input, textarea, select { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
+}
