@@ -7,7 +7,6 @@
   --lp-sun: #ffb347;
   --lp-sun-bright: #ffd76a;
   position: relative;
-  overflow-x: hidden;
 }
 
 /* ambient sun glow, fixed behind everything */

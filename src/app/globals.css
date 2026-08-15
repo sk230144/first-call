@@ -38,6 +38,9 @@ body {
   font-size: 15px;
   line-height: 1.6;
   min-height: 100vh;
+  /* contains the landing page's oversized ambient glow (.lp-flare) without
+     putting overflow on .lp itself, which would break its sticky header */
+  overflow-x: hidden;
 }
 
 a { color: var(--accent); text-decoration: none; }
