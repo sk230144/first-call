@@ -50,7 +50,7 @@ function tx<T>(db: IDBDatabase, mode: IDBTransactionMode, fn: (store: IDBObjectS
 
 export class UploadQueue {
   private db: IDBDatabase | null = null;
-  private draining = false;
+  private drainPromise: Promise<void> | null = null;
   private stopped = false;
   public onProgress: (pending: number, uploaded: number) => void = () => {};
   private uploadedCount = 0;
@@ -77,30 +77,40 @@ export class UploadQueue {
     return tx<number>(this.db!, 'readonly', (s) => s.count());
   }
 
-  /** Continuously process the queue with exponential backoff per segment. */
-  async drain(): Promise<void> {
-    if (this.draining || this.stopped) return;
-    this.draining = true;
-    try {
-      while (!this.stopped) {
-        if (!this.db) await this.init();
-        const all = await tx<QueuedSegment[]>(this.db!, 'readonly', (s) => s.getAll());
-        if (all.length === 0) break;
-        const seg = all.sort((a, b) => a.createdAt - b.createdAt)[0];
-        const ok = await this.uploadOne(seg);
-        if (ok) {
-          await tx(this.db!, 'readwrite', (s) => s.delete(seg.key));
-          this.uploadedCount++;
-        } else {
-          seg.attempts++;
-          await tx(this.db!, 'readwrite', (s) => s.put(seg));
-          // exponential backoff, capped at 30s
-          await sleep(Math.min(1000 * 2 ** seg.attempts, 30_000));
-        }
-        this.onProgress(await this.pendingCount(), this.uploadedCount);
+  /**
+   * Continuously process the queue with exponential backoff per segment.
+   * Concurrent callers (e.g. enqueue() firing this after every recorded
+   * segment, and finishCall() awaiting it at the end) share the SAME
+   * in-flight run via drainPromise, so `await queue.drain()` always waits
+   * for the queue to actually be empty — it previously returned instantly
+   * if a drain was already running, letting /complete fire while segments
+   * were still mid-upload.
+   */
+  drain(): Promise<void> {
+    if (this.stopped) return Promise.resolve();
+    if (!this.drainPromise) {
+      this.drainPromise = this.runDrainLoop().finally(() => { this.drainPromise = null; });
+    }
+    return this.drainPromise;
+  }
+
+  private async runDrainLoop(): Promise<void> {
+    while (!this.stopped) {
+      if (!this.db) await this.init();
+      const all = await tx<QueuedSegment[]>(this.db!, 'readonly', (s) => s.getAll());
+      if (all.length === 0) break;
+      const seg = all.sort((a, b) => a.createdAt - b.createdAt)[0];
+      const ok = await this.uploadOne(seg);
+      if (ok) {
+        await tx(this.db!, 'readwrite', (s) => s.delete(seg.key));
+        this.uploadedCount++;
+      } else {
+        seg.attempts++;
+        await tx(this.db!, 'readwrite', (s) => s.put(seg));
+        // exponential backoff, capped at 30s
+        await sleep(Math.min(1000 * 2 ** seg.attempts, 30_000));
       }
-    } finally {
-      this.draining = false;
+      this.onProgress(await this.pendingCount(), this.uploadedCount);
     }
   }
 
