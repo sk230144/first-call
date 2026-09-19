@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { useT } from '@/lib/i18n/LocaleProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import BrandMark from '@/components/BrandMark';
 import type { DictionaryKey } from '@/lib/i18n/dictionary';
 
 const NAV: { href: string; labelKey: DictionaryKey; roles: string[] }[] = [
@@ -13,6 +14,12 @@ const NAV: { href: string; labelKey: DictionaryKey; roles: string[] }[] = [
   { href: '/admin/templates', labelKey: 'nav.templates', roles: ['admin'] },
   { href: '/admin/review', labelKey: 'nav.review', roles: ['admin'] },
   { href: '/admin/recovery', labelKey: 'nav.recovery', roles: ['admin'] },
+];
+
+// New document-signing flow — not yet in the translation dictionary
+// (English-only for now; the video-call flow is fully translated).
+const EXTRA_NAV: { href: string; label: string; roles: string[] }[] = [
+  { href: '/admin/documents', label: 'Documents', roles: ['admin', 'agent'] },
 ];
 
 export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
@@ -61,7 +68,7 @@ export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
           <span /><span /><span />
         </button>
         <div className="brand">
-          <span className="brand-mark">A</span>
+          <span className="brand-mark"><BrandMark size={28} /></span>
           <span className="brand-text">Accord</span>
         </div>
       </header>
@@ -71,7 +78,7 @@ export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
       <aside id="app-sidebar" className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-head">
           <div className="brand">
-            <span className="brand-mark">A</span>
+            <span className="brand-mark"><BrandMark size={30} /></span>
             <span className="brand-text">Accord</span>
           </div>
           <button className="sidebar-close" aria-label="Close menu" onClick={() => setOpen(false)}>✕</button>
@@ -82,6 +89,14 @@ export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
             return (
               <Link key={item.href} href={item.href} className={active ? 'active' : ''}>
                 {t(item.labelKey)}
+              </Link>
+            );
+          })}
+          {EXTRA_NAV.filter((item) => item.roles.includes(role)).map((item) => {
+            const active = pathname === item.href || pathname?.startsWith(item.href + '/');
+            return (
+              <Link key={item.href} href={item.href} className={active ? 'active' : ''}>
+                {item.label}
               </Link>
             );
           })}

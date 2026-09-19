@@ -23,6 +23,29 @@ export async function logLifecycle(opts: {
   if (error) console.error('[lifecycle] failed to log', opts.eventType, error.message);
 }
 
+/**
+ * Same shape as logLifecycle, but for the document-signing flow — a
+ * separate table (document_lifecycle_events) because that flow's rows
+ * key off document_sessions, not sessions.
+ */
+export async function logDocumentLifecycle(opts: {
+  documentSessionId: string | null;
+  correlationId: string;
+  eventType: string;
+  severity?: 'info' | 'warn' | 'error';
+  data?: Record<string, unknown>;
+}) {
+  const db = supabaseAdmin();
+  const { error } = await db.from('document_lifecycle_events').insert({
+    document_session_id: opts.documentSessionId,
+    correlation_id: opts.correlationId,
+    event_type: opts.eventType,
+    severity: opts.severity ?? 'info',
+    data: opts.data ?? {},
+  });
+  if (error) console.error('[doc-lifecycle] failed to log', opts.eventType, error.message);
+}
+
 /** Immutable audit trail on every state change. */
 export async function logAudit(opts: {
   action: string;
