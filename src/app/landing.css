@@ -73,6 +73,8 @@
 }
 .lp-nav-cta:hover { background: var(--surface-hover); border-color: var(--accent); color: var(--text); }
 
+.lp-nav-actions { display: flex; align-items: center; gap: 12px; }
+
 /* ---------------------------------------------------------- hero */
 .lp-hero {
   max-width: 1180px;

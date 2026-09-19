@@ -10,6 +10,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
+import { useT } from '@/lib/i18n/LocaleProvider';
+import type { DictionaryKey } from '@/lib/i18n/dictionary';
 
 type Entry = {
   source: 'lifecycle' | 'audit' | 'client';
@@ -22,6 +24,7 @@ type Entry = {
 
 export default function SessionLogPage() {
   const { id } = useParams<{ id: string }>();
+  const t = useT();
   const [session, setSession] = useState<{ id: string; customer_name: string } | null>(null);
   const [timeline, setTimeline] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,35 +52,35 @@ export default function SessionLogPage() {
       <main className="shell">
         <div className="page-header">
           <div className="eyebrow">
-            <Link href={`/admin/review/${id}`}>← Back to session</Link>
+            <Link href={`/admin/review/${id}`}>{t('log.backToSession')}</Link>
           </div>
-          <h1>{session ? `${session.customer_name} — Full log` : 'Session log'}</h1>
-          <p className="sub">Every recorded event for this session, in order — client telemetry, server lifecycle events, and audit-trail state changes.</p>
+          <h1>{session ? t('log.titleWithName', { name: session.customer_name }) : t('log.titleGeneric')}</h1>
+          <p className="sub">{t('log.subtitle')}</p>
         </div>
 
         <div className="row" style={{ marginBottom: 20 }}>
           <select style={{ width: 200 }} value={filter} onChange={(e) => setFilter(e.target.value as any)}>
-            <option value="all">All sources</option>
-            <option value="lifecycle">Server lifecycle</option>
-            <option value="client">Client telemetry</option>
-            <option value="audit">Audit trail</option>
+            <option value="all">{t('log.allSources')}</option>
+            <option value="lifecycle">{t('log.serverLifecycle')}</option>
+            <option value="client">{t('log.clientTelemetry')}</option>
+            <option value="audit">{t('log.auditTrail')}</option>
           </select>
           <select style={{ width: 160 }} value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value as any)}>
-            <option value="all">All severities</option>
-            <option value="info">Info</option>
-            <option value="warn">Warn</option>
-            <option value="error">Error</option>
+            <option value="all">{t('log.allSeverities')}</option>
+            <option value="info">{t('log.info')}</option>
+            <option value="warn">{t('log.warn')}</option>
+            <option value="error">{t('log.error')}</option>
           </select>
-          <span className="muted">{filtered.length} of {timeline.length} events</span>
+          <span className="muted">{t('log.eventsCount', { shown: filtered.length, total: timeline.length })}</span>
         </div>
 
-        {loading && <p className="muted">Loading…</p>}
+        {loading && <p className="muted">{t('common.loading')}</p>}
 
         {!loading && (
           <div className="card flush">
             <div className="log-list">
               {filtered.map((e, i) => <LogRow key={i} entry={e} />)}
-              {filtered.length === 0 && <div className="empty-state">No events match this filter.</div>}
+              {filtered.length === 0 && <div className="empty-state">{t('log.noEvents')}</div>}
             </div>
           </div>
         )}
@@ -107,6 +110,7 @@ export default function SessionLogPage() {
 }
 
 function LogRow({ entry }: { entry: Entry }) {
+  const t = useT();
   const hasData = entry.data && Object.values(entry.data).some((v) => v !== null && v !== undefined);
   return (
     <div className="log-row">
@@ -116,8 +120,8 @@ function LogRow({ entry }: { entry: Entry }) {
       </div>
       <div>
         <div className="log-label">{entry.label}</div>
-        <div className="log-source">{sourceLabel(entry.source)}</div>
-        {entry.correlation_id && <div className="log-corr">correlation: {entry.correlation_id}</div>}
+        <div className="log-source">{sourceLabel(entry.source, t)}</div>
+        {entry.correlation_id && <div className="log-corr">{t('log.correlation')} {entry.correlation_id}</div>}
         {hasData && <div className="log-data">{JSON.stringify(entry.data, null, 2)}</div>}
       </div>
     </div>
@@ -130,8 +134,8 @@ function severityPill(s: string) {
   return 'completed';
 }
 
-function sourceLabel(s: Entry['source']) {
-  if (s === 'lifecycle') return 'Server lifecycle';
-  if (s === 'client') return 'Client telemetry';
-  return 'Audit trail';
+function sourceLabel(s: Entry['source'], t: (key: DictionaryKey) => string) {
+  if (s === 'lifecycle') return t('log.serverLifecycle');
+  if (s === 'client') return t('log.clientTelemetry');
+  return t('log.auditTrail');
 }

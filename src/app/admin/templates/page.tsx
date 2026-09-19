@@ -6,8 +6,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import TemplateForm, { emptyTemplateForm, validateTemplateForm, type TemplateFormValue } from '@/components/TemplateForm';
+import { useT } from '@/lib/i18n/LocaleProvider';
 
 export default function TemplatesPage() {
+  const t = useT();
   const [templates, setTemplates] = useState<any[]>([]);
   const [form, setForm] = useState<TemplateFormValue>(emptyTemplateForm());
   const [error, setError] = useState('');
@@ -49,32 +51,32 @@ export default function TemplatesPage() {
       <TopBar role="admin" />
       <main className="shell">
         <div className="page-header">
-          <div className="eyebrow">Configuration</div>
-          <h1>Question Templates</h1>
+          <div className="eyebrow">{t('templates.eyebrow')}</div>
+          <h1>{t('templates.title')}</h1>
         </div>
 
         <div className="card">
-          <TemplateForm value={form} onChange={setForm} onSubmit={save} error={error} submitLabel="Save template" />
+          <TemplateForm value={form} onChange={setForm} onSubmit={save} error={error} submitLabel={t('form.saveTemplate')} />
         </div>
 
-        <h2>Existing templates</h2>
+        <h2>{t('templates.existing')}</h2>
         <div className="card flush">
           <table className="grid" style={{ border: 'none', borderRadius: 0 }}>
-            <thead><tr><th>Name</th><th>Version</th><th>Language</th><th>Questions</th><th>Variables</th><th>Created</th><th></th></tr></thead>
+            <thead><tr><th>{t('templates.name')}</th><th>{t('templates.version')}</th><th>{t('common.language')}</th><th>{t('templates.questions')}</th><th>{t('templates.variables')}</th><th>{t('templates.created')}</th><th></th></tr></thead>
             <tbody>
-              {templates.map((t) => (
-                <tr key={t.id}>
-                  <td><strong>{t.name}</strong></td>
-                  <td>v{t.version}</td>
-                  <td>{t.language}</td>
-                  <td>{(t.questions ?? []).length}</td>
-                  <td>{(t.variables ?? []).length}</td>
-                  <td className="muted">{new Date(t.created_at).toLocaleDateString()}</td>
-                  <td><Link href={`/admin/templates/${t.id}`}>Edit →</Link></td>
+              {templates.map((tpl) => (
+                <tr key={tpl.id}>
+                  <td><strong>{tpl.name}</strong></td>
+                  <td>v{tpl.version}</td>
+                  <td>{tpl.language}</td>
+                  <td>{(tpl.questions ?? []).length}</td>
+                  <td>{(tpl.variables ?? []).length}</td>
+                  <td className="muted">{new Date(tpl.created_at).toLocaleDateString()}</td>
+                  <td><Link href={`/admin/templates/${tpl.id}`}>{t('templates.edit')}</Link></td>
                 </tr>
               ))}
               {templates.length === 0 && (
-                <tr><td colSpan={7}><div className="empty-state">No templates yet.</div></td></tr>
+                <tr><td colSpan={7}><div className="empty-state">{t('templates.noneYet')}</div></td></tr>
               )}
             </tbody>
           </table>

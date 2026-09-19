@@ -8,8 +8,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
+import { useT } from '@/lib/i18n/LocaleProvider';
 
 export default function RecoveryPage() {
+  const t = useT();
   const [sessions, setSessions] = useState<any[]>([]);
   const [busy, setBusy] = useState('');
 
@@ -38,13 +40,13 @@ export default function RecoveryPage() {
       <TopBar role="admin" />
       <main className="shell">
         <div className="page-header">
-          <div className="eyebrow">Operations</div>
-          <h1>Recovery Queue</h1>
-          <p className="sub">Reasons: corrupt · too_short · missing · cut_off. A lost recording is a compliance failure — resolve every item.</p>
+          <div className="eyebrow">{t('recovery.eyebrow')}</div>
+          <h1>{t('recovery.title')}</h1>
+          <p className="sub">{t('recovery.subtitle')}</p>
         </div>
         <div className="card flush">
           <table className="grid" style={{ border: 'none', borderRadius: 0 }}>
-            <thead><tr><th>Customer</th><th>Reason</th><th>State</th><th>Source</th><th>Actions</th></tr></thead>
+            <thead><tr><th>{t('recovery.customer')}</th><th>{t('recovery.reason')}</th><th>{t('recovery.state')}</th><th>{t('recovery.source')}</th><th>{t('recovery.actions')}</th></tr></thead>
             <tbody>
               {sessions.map((s) => (
                 <tr key={s.id}>
@@ -54,15 +56,15 @@ export default function RecoveryPage() {
                   <td className="muted">{s.recorder_source ?? '—'}</td>
                   <td>
                     <div className="row">
-                      <button className="primary" disabled={busy === s.id} onClick={() => act(s.id, 'restitch')}>Re-stitch</button>
-                      <button className="good" disabled={busy === s.id} onClick={() => act(s.id, 'resolve')}>Resolved</button>
-                      <button className="ghost" disabled={busy === s.id} onClick={() => act(s.id, 'unrecoverable')}>Unrecoverable</button>
+                      <button className="primary" disabled={busy === s.id} onClick={() => act(s.id, 'restitch')}>{t('recovery.restitch')}</button>
+                      <button className="good" disabled={busy === s.id} onClick={() => act(s.id, 'resolve')}>{t('recovery.resolved')}</button>
+                      <button className="ghost" disabled={busy === s.id} onClick={() => act(s.id, 'unrecoverable')}>{t('recovery.unrecoverable')}</button>
                     </div>
                   </td>
                 </tr>
               ))}
               {sessions.length === 0 && (
-                <tr><td colSpan={5}><div className="empty-state">Recovery queue is empty. 🎉</div></td></tr>
+                <tr><td colSpan={5}><div className="empty-state">{t('recovery.empty')}</div></td></tr>
               )}
             </tbody>
           </table>

@@ -11,6 +11,9 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { CallRecorder } from '@/lib/call/recorder';
 import { UploadQueue, registerBackgroundSync } from '@/lib/call/uploadQueue';
 import { AnswerTranscriber, isSpeechRecognitionSupported, speakQuestion, stopSpeaking } from '@/lib/call/voice';
+import { useT } from '@/lib/i18n/LocaleProvider';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import type { DictionaryKey } from '@/lib/i18n/dictionary';
 
 type Question = { id: string; order: number; text: string; video_url: string | null };
 type Payload = {
@@ -27,6 +30,7 @@ const CALL_PAGE_CSS = `
           min-height: 100vh; color: #f0f4f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
           background: radial-gradient(1100px 500px at 15% -10%, rgba(0,194,212,0.10), transparent 60%), #0a1420;
         }
+        .lang-bar { display: flex; justify-content: flex-end; padding: 14px 20px 0; }
         .badge-mark {
           display: inline-flex; align-items: center; justify-content: center;
           width: 48px; height: 48px; border-radius: 14px; margin-bottom: 20px;
@@ -91,6 +95,7 @@ const CALL_PAGE_CSS = `
 export default function SessionCallPage() {
   const { id } = useParams<{ id: string }>();
   const token = useSearchParams().get('token');
+  const t = useT();
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [errorMsg, setErrorMsg] = useState('');
@@ -130,7 +135,7 @@ export default function SessionCallPage() {
   // ---------- load payload + register service worker ----------
   useEffect(() => {
     correlationId.current = crypto.randomUUID();
-    if (!token) { setPhase('error'); setErrorMsg('This link is missing its access token.'); return; }
+    if (!token) { setPhase('error'); setErrorMsg(t('call.errorMissingToken')); return; }
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
@@ -139,9 +144,9 @@ export default function SessionCallPage() {
         const data = await r.json();
         if (!r.ok) {
           setErrorMsg(
-            data.error === 'session_expired' ? 'This link has expired. Please contact your representative for a new one.' :
-            data.error === 'already_completed' ? 'This welcome call has already been completed. Thank you!' :
-            'This link is invalid. Please contact your representative.'
+            data.error === 'session_expired' ? t('call.errorExpiredLink') :
+            data.error === 'already_completed' ? t('call.errorAlreadyCompleted') :
+            t('call.errorInvalidLink')
           );
           setPhase('error');
           return;
@@ -149,7 +154,8 @@ export default function SessionCallPage() {
         setPayload(data);
         setPhase('consent');
       })
-      .catch(() => { setErrorMsg('Could not reach the server. Please check your connection.'); setPhase('error'); });
+      .catch(() => { setErrorMsg(t('call.errorCantReach')); setPhase('error'); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, token]);
 
   // ---------- consent ----------
@@ -221,7 +227,7 @@ export default function SessionCallPage() {
       setPhase('recording');
       setQuestionIdx(0);
     } catch (e: any) {
-      setErrorMsg(getMediaErrorMessage(e));
+      setErrorMsg(getMediaErrorMessage(e, t));
       setPhase('error');
       telemetry('permission_denied', { name: e?.name, message: e?.message });
     }
@@ -257,7 +263,7 @@ export default function SessionCallPage() {
     speakQuestion(currentQuestion.text, payload?.template.language);
 
     const transcriber = new AnswerTranscriber();
-    transcriber.onUpdate = (t) => { liveTranscriptRef.current = t; };
+    transcriber.onUpdate = (text) => { liveTranscriptRef.current = text; };
     transcriber.start(payload?.template.language);
     transcriberRef.current = transcriber;
 
@@ -307,7 +313,7 @@ export default function SessionCallPage() {
     recorder.setCaption('');
 
     const expectedSegments = await recorder.stop();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((track) => track.stop());
 
     await registerBackgroundSync();
     await queue.drain(); // push remaining segments now, while the tab is open
@@ -322,35 +328,45 @@ export default function SessionCallPage() {
   }
 
   // ---------- render ----------
+  const showLanguageBar = phase === 'loading' || phase === 'error' || phase === 'consent';
+
   return (
     <main className="call-page">
       {/* hidden media elements feeding the compositor — always mounted so refs exist before recording starts */}
       <video ref={webcamRef} muted playsInline style={{ display: 'none' }} />
       <video ref={questionVideoRef} playsInline style={{ display: 'none' }} />
 
-      {phase === 'loading' && <Center><p>Loading your welcome call…</p></Center>}
+      {/* Only offered before recording starts — switching mid-call would
+          restart the TTS/STT hooks against a question already in flight. */}
+      {showLanguageBar && (
+        <div className="lang-bar">
+          <LanguageSwitcher />
+        </div>
+      )}
+
+      {phase === 'loading' && <Center><p>{t('call.loading')}</p></Center>}
 
       {phase === 'error' && (
         <Center>
-          <h1>Unable to start</h1>
+          <h1>{t('call.unableToStart')}</h1>
           <p>{errorMsg}</p>
         </Center>
       )}
 
       {phase === 'consent' && payload && (
         <Center>
-          <span className="badge-mark">WC</span>
-          <h1>Welcome, {payload.session.customer_name}</h1>
-          <p className="muted">You&apos;ll answer {questions.length} short questions on camera. It takes about 5 minutes.</p>
+          <span className="badge-mark">A</span>
+          <h1>{t('call.welcome', { name: payload.session.customer_name })}</h1>
+          <p className="muted">{t('call.willAnswer', { count: questions.length })}</p>
           <p className="consent-text">{payload.template.consent_language}</p>
-          <button className="btn-primary" onClick={giveConsent}>I consent — start my call</button>
+          <button className="btn-primary" onClick={giveConsent}>{t('call.consentButton')}</button>
         </Center>
       )}
 
       {phase === 'setup' && (
         <Center>
           <div className="spinner" />
-          <p>Setting up your camera and microphone…</p>
+          <p>{t('call.settingUp')}</p>
         </Center>
       )}
 
@@ -361,21 +377,21 @@ export default function SessionCallPage() {
             <div className="progress-track">
               <div className="progress-fill" style={{ width: `${((questionIdx + 1) / Math.max(questions.length, 1)) * 100}%` }} />
             </div>
-            <div className="progress">Question {questionIdx + 1} of {questions.length}</div>
+            <div className="progress">{t('call.questionOf', { current: questionIdx + 1, total: questions.length })}</div>
             <div className="question-text">{currentQuestion.text}</div>
-            {isSpeechRecognitionSupported && <div className="listening-hint">🎙 Listening — you can also just say your answer</div>}
+            {isSpeechRecognitionSupported && <div className="listening-hint">{t('call.listeningHint')}</div>}
             <div className="answer-row">
-              <button className="btn-yes" onClick={() => answer('yes')}>Yes</button>
-              <button className="btn-no" onClick={() => answer('no')}>No</button>
+              <button className="btn-yes" onClick={() => answer('yes')}>{t('call.yes')}</button>
+              <button className="btn-no" onClick={() => answer('no')}>{t('call.no')}</button>
             </div>
-            <div className="rec-dot">● REC{uploadsPending > 0 ? ` · uploading ${uploadsPending}` : ''}</div>
+            <div className="rec-dot">● {t('call.rec')}{uploadsPending > 0 ? ` · ${t('call.uploading', { count: uploadsPending })}` : ''}</div>
           </div>
         )}
         {phase === 'finalizing' && (
           <div className="controls">
             <div className="spinner" style={{ margin: '0 auto 16px' }} />
-            <div className="question-text">Saving your recording… please keep this page open.</div>
-            {uploadsPending > 0 && <div className="muted">{uploadsPending} segment(s) remaining</div>}
+            <div className="question-text">{t('call.savingRecording')}</div>
+            {uploadsPending > 0 && <div className="muted">{t('call.segmentsRemaining', { count: uploadsPending })}</div>}
           </div>
         )}
       </div>
@@ -383,8 +399,8 @@ export default function SessionCallPage() {
       {phase === 'done' && (
         <Center>
           <span className="badge-mark done">✓</span>
-          <h1>All done — thank you!</h1>
-          <p>Your welcome call has been recorded and submitted. You can close this page.</p>
+          <h1>{t('call.allDone')}</h1>
+          <p>{t('call.responsesRecorded')}</p>
         </Center>
       )}
 
@@ -396,24 +412,24 @@ export default function SessionCallPage() {
   );
 }
 
-function getMediaErrorMessage(e: any): string {
+function getMediaErrorMessage(e: any, t: (key: DictionaryKey) => string): string {
   if (typeof window !== 'undefined' && !window.isSecureContext) {
-    return 'This page must be opened over a secure (https://) connection to use your camera and microphone.';
+    return t('call.errorSecureContext');
   }
   switch (e?.name) {
     case 'NotAllowedError':
     case 'PermissionDeniedError':
-      return 'Camera and microphone access is required for this call. Please allow access in your browser settings and reload.';
+      return t('call.errorPermissionDenied');
     case 'NotFoundError':
     case 'DevicesNotFoundError':
-      return 'No camera or microphone was found on this device. Please connect one and reload.';
+      return t('call.errorNoDevice');
     case 'NotReadableError':
     case 'TrackStartError':
-      return 'Your camera or microphone is already in use by another application. Please close it and reload.';
+      return t('call.errorDeviceInUse');
     case 'OverconstrainedError':
-      return 'Your camera does not support the required video settings. Please try a different device.';
+      return t('call.errorUnsupportedVideo');
     default:
-      return 'Camera and microphone access is required for this call. Please allow access and reload.';
+      return t('call.errorDefaultDeviceAccess');
   }
 }
 

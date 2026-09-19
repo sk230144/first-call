@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
+import Modal from '@/components/Modal';
 import { supabaseBrowser } from '@/lib/supabase-browser';
+import { useT } from '@/lib/i18n/LocaleProvider';
 
 type TemplateLite = {
   id: string; name: string;
@@ -20,6 +22,7 @@ type SessionLite = {
 };
 
 export default function Dashboard() {
+  const t = useT();
   const [role, setRole] = useState<'admin' | 'agent'>('agent');
   const [sessions, setSessions] = useState<SessionLite[]>([]);
   const [templates, setTemplates] = useState<TemplateLite[]>([]);
@@ -28,14 +31,24 @@ export default function Dashboard() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [createdLink, setCreatedLink] = useState('');
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function openForm() {
+    setForm({});
+    setSelectedTemplate('');
+    setError('');
+    setCreatedLink('');
+    setShowForm(true);
+  }
 
   const load = useCallback(async () => {
     const [sRes, tRes] = await Promise.all([fetch('/api/sessions'), fetch('/api/templates')]);
     if (sRes.status === 401) { window.location.href = '/login'; return; }
-    const s = await sRes.json();
-    const t = await tRes.json();
-    setSessions(s.sessions ?? []);
-    setTemplates(t.templates ?? []);
+    const sData = await sRes.json();
+    const tData = await tRes.json();
+    setSessions(sData.sessions ?? []);
+    setTemplates(tData.templates ?? []);
     const { data: { user } } = await supabaseBrowser().auth.getUser();
     if (user) {
       const { data } = await supabaseBrowser().from('profiles').select('role').eq('id', user.id).single();
@@ -45,11 +58,12 @@ export default function Dashboard() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const template = templates.find((t) => t.id === selectedTemplate);
+  const template = templates.find((tpl) => tpl.id === selectedTemplate);
 
   async function createSession(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     const variable_values: Record<string, string> = {};
     for (const v of template?.variables ?? []) variable_values[v.key] = form[`var_${v.key}`] ?? '';
     const res = await fetch('/api/sessions', {
@@ -65,11 +79,18 @@ export default function Dashboard() {
       }),
     });
     const data = await res.json();
-    if (!res.ok) { setError(data.error ?? 'failed'); return; }
+    setCreating(false);
+    if (!res.ok) { setError(data.error ?? t('dashboard.createFailed')); return; }
     setCreatedLink(data.link);
     setShowForm(false);
     setForm({});
     void load();
+  }
+
+  async function copyLink() {
+    await navigator.clipboard.writeText(createdLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -78,60 +99,81 @@ export default function Dashboard() {
       <main className="shell">
         <div className="page-header row" style={{ justifyContent: 'space-between' }}>
           <div>
-            <div className="eyebrow">Dashboard</div>
-            <h1>Sessions</h1>
+            <div className="eyebrow">{t('dashboard.eyebrow')}</div>
+            <h1>{t('dashboard.title')}</h1>
           </div>
-          <button className="primary" onClick={() => { setShowForm(!showForm); setCreatedLink(''); }}>
-            {showForm ? 'Cancel' : '+ New session'}
-          </button>
+          <button className="primary" onClick={openForm}>{t('dashboard.newSession')}</button>
         </div>
 
         {createdLink && (
           <div className="card highlight" style={{ marginTop: 24 }}>
-            <strong>Session created.</strong> Send this one-time link to the customer (SMS or email):
+            <strong>{t('dashboard.sessionCreated')}</strong> {t('dashboard.sendLink')}
             <p style={{ wordBreak: 'break-all', margin: '8px 0' }}><code>{createdLink}</code></p>
-            <button className="ghost" onClick={() => navigator.clipboard.writeText(createdLink)}>Copy link</button>
+            <div className="row">
+              <button className="primary" onClick={copyLink}>{copied ? t('common.copied') : t('common.copyLink')}</button>
+              <button className="ghost" onClick={() => setCreatedLink('')}>{t('common.dismiss')}</button>
+            </div>
           </div>
         )}
 
-        {showForm && (
-          <div className="card">
-            <form onSubmit={createSession}>
-              <label>Template</label>
-              <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value)} required>
-                <option value="">Select…</option>
-                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-              <label>Customer name</label>
-              <input value={form.customer_name ?? ''} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} required />
-              <label>Phone</label>
-              <input value={form.customer_phone ?? ''} onChange={(e) => setForm({ ...form, customer_phone: e.target.value })} />
-              <label>Email</label>
-              <input type="email" value={form.customer_email ?? ''} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} />
-              <label>Address</label>
-              <input value={form.customer_address ?? ''} onChange={(e) => setForm({ ...form, customer_address: e.target.value })} />
-              {(template?.variables ?? []).map((v) => (
-                <div key={v.key}>
-                  <label>{v.label}{v.required ? ' *' : ''}</label>
-                  <input
-                    value={form[`var_${v.key}`] ?? ''}
-                    onChange={(e) => setForm({ ...form, [`var_${v.key}`]: e.target.value })}
-                    required={v.required}
-                  />
-                </div>
-              ))}
-              {error && <p className="error">{error}</p>}
-              <div style={{ marginTop: 16 }}>
-                <button className="primary">Create session &amp; get link</button>
+        <Modal
+          open={showForm}
+          onClose={() => setShowForm(false)}
+          title={t('dashboard.modalTitle')}
+          subtitle={t('dashboard.modalSubtitle')}
+          width={560}
+          footer={
+            <>
+              <button type="button" className="ghost" onClick={() => setShowForm(false)}>{t('common.cancel')}</button>
+              <button className="primary" type="submit" form="new-session-form" disabled={creating}>
+                {creating ? t('dashboard.creating') : t('dashboard.createSession')}
+              </button>
+            </>
+          }
+        >
+          <form id="new-session-form" onSubmit={createSession}>
+            <label htmlFor="session-template">{t('dashboard.template')}</label>
+            <select id="session-template" value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value)} required>
+              <option value="">{t('dashboard.selectEllipsis')}</option>
+              {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
+            </select>
+            <label htmlFor="customer-name">{t('dashboard.customerName')}</label>
+            <input id="customer-name" autoComplete="name" value={form.customer_name ?? ''} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} required />
+            <div className="field-pair">
+              <div>
+                <label htmlFor="customer-phone">{t('dashboard.phone')}</label>
+                <input id="customer-phone" type="tel" autoComplete="tel" value={form.customer_phone ?? ''} onChange={(e) => setForm({ ...form, customer_phone: e.target.value })} />
               </div>
-            </form>
-          </div>
-        )}
+              <div>
+                <label htmlFor="customer-email">{t('dashboard.email')}</label>
+                <input id="customer-email" type="email" autoComplete="email" value={form.customer_email ?? ''} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} />
+              </div>
+            </div>
+            <label htmlFor="customer-address">{t('dashboard.address')}</label>
+            <input id="customer-address" autoComplete="street-address" value={form.customer_address ?? ''} onChange={(e) => setForm({ ...form, customer_address: e.target.value })} />
+            {(template?.variables ?? []).length > 0 && (
+              <div className="modal-subsection">
+                <span className="eyebrow">{t('dashboard.templateDetails')}</span>
+                {(template?.variables ?? []).map((v) => (
+                  <div key={v.key}>
+                    <label htmlFor={`session-var-${v.key}`}>{v.label}{v.required ? ' *' : ''}</label>
+                    <input
+                      id={`session-var-${v.key}`} value={form[`var_${v.key}`] ?? ''}
+                      onChange={(e) => setForm({ ...form, [`var_${v.key}`]: e.target.value })}
+                      required={v.required}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {error && <p className="error">{error}</p>}
+          </form>
+        </Modal>
 
         <div className="card flush" style={{ marginTop: 24 }}>
           <table className="grid" style={{ border: 'none', borderRadius: 0 }}>
             <thead>
-              <tr><th>Customer</th><th>Status</th><th>Assembly</th><th>Recovery</th><th>Created</th><th></th></tr>
+              <tr><th>{t('dashboard.customer')}</th><th>{t('dashboard.status')}</th><th>{t('dashboard.assembly')}</th><th>{t('dashboard.recovery')}</th><th>{t('dashboard.created')}</th><th></th></tr>
             </thead>
             <tbody>
               {sessions.map((s) => (
@@ -141,11 +183,11 @@ export default function Dashboard() {
                   <td><span className={`pill ${s.assembly_status}`}>{s.assembly_status.replace('_', ' ')}</span></td>
                   <td>{s.recovery_state !== 'none' && <span className={`pill ${s.recovery_state}`}>{s.recovery_state}</span>}</td>
                   <td className="muted">{new Date(s.created_at).toLocaleString()}</td>
-                  <td><Link href={`/admin/review/${s.id}`}>View →</Link></td>
+                  <td><Link href={`/admin/review/${s.id}`}>{t('dashboard.view')}</Link></td>
                 </tr>
               ))}
               {sessions.length === 0 && (
-                <tr><td colSpan={6}><div className="empty-state">No sessions yet. Create one to get started.</div></td></tr>
+                <tr><td colSpan={6}><div className="empty-state">{t('dashboard.noSessions')}</div></td></tr>
               )}
             </tbody>
           </table>

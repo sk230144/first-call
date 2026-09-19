@@ -3,6 +3,7 @@
 /** Shared question/variable builder form, used for both creating and editing templates. */
 
 import { useState } from 'react';
+import { useT } from '@/lib/i18n/LocaleProvider';
 
 export type Q = { id: string; order: number; text: string; video_url: string };
 export type V = { key: string; label: string; required: boolean };
@@ -80,6 +81,7 @@ export default function TemplateForm({
   error: string;
   submitLabel: string;
 }) {
+  const t = useT();
   const { name, language, consent, webhookUrl, questions, variables } = value;
   const set = (patch: Partial<TemplateFormValue>) => onChange({ ...value, ...patch });
 
@@ -89,65 +91,70 @@ export default function TemplateForm({
 
   return (
     <form onSubmit={onSubmit}>
-      <label>Template name</label>
-      <input value={name} onChange={(e) => set({ name: e.target.value })} required placeholder="Solar welcome call v1" />
+      <label>{t('form.templateName')}</label>
+      <input value={name} onChange={(e) => set({ name: e.target.value })} required placeholder="New customer agreement v1" />
       <div className="row">
         <div style={{ flex: 1 }}>
-          <label>Language</label>
+          <label>{t('form.language')}</label>
           <select value={language} onChange={(e) => set({ language: e.target.value })}>
             <option value="en-US">English (en-US)</option>
             <option value="es-US">Spanish (es-US)</option>
+            <option value="hi-IN">Hindi (hi-IN)</option>
+            <option value="ta-IN">Tamil (ta-IN)</option>
+            <option value="te-IN">Telugu (te-IN)</option>
+            <option value="kn-IN">Kannada (kn-IN)</option>
+            <option value="ml-IN">Malayalam (ml-IN)</option>
           </select>
         </div>
         <div style={{ flex: 2 }}>
-          <label>Webhook URL (optional)</label>
+          <label>{t('form.webhookUrl')}</label>
           <input value={webhookUrl} onChange={(e) => set({ webhookUrl: e.target.value })} placeholder="https://..." />
         </div>
       </div>
-      <label>Consent language</label>
+      <label>{t('form.consentLanguage')}</label>
       <textarea rows={2} value={consent} onChange={(e) => set({ consent: e.target.value })} />
 
-      <h2>Questions (in order) — use {'{{variable}}'} for dynamic values</h2>
+      <h2>{t('form.questionsHeading')}</h2>
       {questions.map((q, i) => (
         <div key={q.id} className="row" style={{ marginBottom: 8 }}>
           <span className="muted">{i + 1}.</span>
-          <input style={{ flex: 3 }} placeholder="Do you understand that {{monthly_payment}} will be your monthly payment?"
+          <input style={{ flex: 3 }} placeholder={t('form.questionPlaceholder')}
             value={q.text} onChange={(e) => set({ questions: questions.map((x) => x.id === q.id ? { ...x, text: e.target.value } : x) })} />
-          <input style={{ flex: 2 }} placeholder="Question video URL (mp4, optional)"
+          <input style={{ flex: 2 }} placeholder={t('form.questionVideoPlaceholder')}
             value={q.video_url} onChange={(e) => set({ questions: questions.map((x) => x.id === q.id ? { ...x, video_url: e.target.value } : x) })} />
           <button type="button" className="ghost" onClick={() => set({ questions: questions.filter((x) => x.id !== q.id) })}>✕</button>
         </div>
       ))}
       <button type="button" className="ghost" onClick={() => set({ questions: [...questions, { id: crypto.randomUUID(), order: questions.length + 1, text: '', video_url: '' }] })}>
-        + Add question
+        {t('form.addQuestion')}
       </button>
 
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h2>Variables</h2>
+        <h2>{t('templates.variables')}</h2>
         <button type="button" className="ghost" onClick={() => set(importVariablesFromQuestions(value))}>
-          ⤵ Import from questions{undetectedCount > 0 ? ` (${undetectedCount} new)` : ''}
+          {t('form.importFromQuestions')}{undetectedCount > 0 ? ` ${t('form.newCount', { count: undetectedCount })}` : ''}
         </button>
       </div>
       {undetectedCount > 0 && (
         <p className="muted" style={{ marginTop: -8, marginBottom: 12 }}>
-          {undetectedCount} variable{undetectedCount > 1 ? 's' : ''} used in your questions {undetectedCount > 1 ? "aren't" : "isn't"} defined yet — click Import to add {undetectedCount > 1 ? 'them' : 'it'} automatically.
+          {t('form.undefinedHint', { count: undetectedCount })}
         </p>
       )}
       {variables.map((v, i) => (
         <div key={i} className="row" style={{ marginBottom: 8 }}>
-          <input style={{ flex: 1 }} placeholder="key (e.g. monthly_payment)"
+          <input style={{ flex: 1 }} placeholder={t('form.keyPlaceholder')}
             value={v.key} onChange={(e) => set({ variables: variables.map((x, j) => j === i ? { ...x, key: e.target.value.replace(/\W/g, '_') } : x) })} />
-          <input style={{ flex: 2 }} placeholder="Label (e.g. Monthly payment)"
+          <input style={{ flex: 2 }} placeholder={t('form.labelPlaceholder')}
             value={v.label} onChange={(e) => set({ variables: variables.map((x, j) => j === i ? { ...x, label: e.target.value } : x) })} />
           <label className="row" style={{ margin: 0 }}>
             <input type="checkbox" style={{ width: 'auto' }} checked={v.required}
-              onChange={(e) => set({ variables: variables.map((x, j) => j === i ? { ...x, required: e.target.checked } : x) })} /> required
+              onChange={(e) => set({ variables: variables.map((x, j) => j === i ? { ...x, required: e.target.checked } : x) })} /> {t('form.required')}
           </label>
           <button type="button" className="ghost" onClick={() => set({ variables: variables.filter((_, j) => j !== i) })}>✕</button>
         </div>
       ))}
       <button type="button" className="ghost" onClick={() => set({ variables: [...variables, { key: '', label: '', required: true }] })}>
-        + Add variable
+        {t('form.addVariable')}
       </button>
 
       {error && <p className="error">{error}</p>}

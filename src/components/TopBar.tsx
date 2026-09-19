@@ -4,17 +4,21 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase-browser';
+import { useT } from '@/lib/i18n/LocaleProvider';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import type { DictionaryKey } from '@/lib/i18n/dictionary';
 
-const NAV = [
-  { href: '/dashboard', label: 'Sessions', roles: ['admin', 'agent'] },
-  { href: '/admin/templates', label: 'Templates', roles: ['admin'] },
-  { href: '/admin/review', label: 'Review', roles: ['admin'] },
-  { href: '/admin/recovery', label: 'Recovery', roles: ['admin'] },
+const NAV: { href: string; labelKey: DictionaryKey; roles: string[] }[] = [
+  { href: '/dashboard', labelKey: 'nav.sessions', roles: ['admin', 'agent'] },
+  { href: '/admin/templates', labelKey: 'nav.templates', roles: ['admin'] },
+  { href: '/admin/review', labelKey: 'nav.review', roles: ['admin'] },
+  { href: '/admin/recovery', labelKey: 'nav.recovery', roles: ['admin'] },
 ];
 
 export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   // Close the drawer whenever the route changes, so tapping a link
@@ -57,8 +61,8 @@ export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
           <span /><span /><span />
         </button>
         <div className="brand">
-          <span className="brand-mark">WC</span>
-          <span className="brand-text">Welcome Call</span>
+          <span className="brand-mark">A</span>
+          <span className="brand-text">Accord</span>
         </div>
       </header>
 
@@ -67,8 +71,8 @@ export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
       <aside id="app-sidebar" className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-head">
           <div className="brand">
-            <span className="brand-mark">WC</span>
-            <span className="brand-text">Welcome Call</span>
+            <span className="brand-mark">A</span>
+            <span className="brand-text">Accord</span>
           </div>
           <button className="sidebar-close" aria-label="Close menu" onClick={() => setOpen(false)}>✕</button>
         </div>
@@ -77,13 +81,14 @@ export default function TopBar({ role }: { role: 'admin' | 'agent' }) {
             const active = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
               <Link key={item.href} href={item.href} className={active ? 'active' : ''}>
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             );
           })}
         </nav>
-        <div className="foot">
-          <button className="ghost" style={{ width: '100%' }} onClick={signOut}>Sign out</button>
+        <div className="foot" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <LanguageSwitcher />
+          <button className="ghost" style={{ width: '100%' }} onClick={signOut}>{t('nav.signOut')}</button>
         </div>
       </aside>
     </>

@@ -9,10 +9,12 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import TemplateForm, { validateTemplateForm, type TemplateFormValue, type Q, type V } from '@/components/TemplateForm';
+import { useT } from '@/lib/i18n/LocaleProvider';
 
 export default function EditTemplatePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const t = useT();
   const [form, setForm] = useState<TemplateFormValue | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -68,7 +70,7 @@ export default function EditTemplatePage() {
     return (
       <div className="app-layout">
         <TopBar role="admin" />
-        <main className="shell"><p className="error">Template not found.</p></main>
+        <main className="shell"><p className="error">{t('templates.notFound')}</p></main>
       </div>
     );
   }
@@ -79,16 +81,16 @@ export default function EditTemplatePage() {
       <main className="shell">
         <div className="page-header row" style={{ justifyContent: 'space-between' }}>
           <div>
-            <div className="eyebrow">Configuration</div>
-            <h1>Edit template</h1>
+            <div className="eyebrow">{t('templates.eyebrow')}</div>
+            <h1>{t('templates.editTitle')}</h1>
           </div>
-          <Link href="/admin/templates"><button className="ghost">← Back to templates</button></Link>
+          <Link href="/admin/templates"><button className="ghost">{t('templates.backToTemplates')}</button></Link>
         </div>
         {!form
-          ? <p className="muted">Loading…</p>
+          ? <p className="muted">{t('common.loading')}</p>
           : (
             <div className="card">
-              <TemplateForm value={form} onChange={setForm} onSubmit={save} error={error} submitLabel={busy ? 'Saving…' : 'Save changes'} />
+              <TemplateForm value={form} onChange={setForm} onSubmit={save} error={error} submitLabel={busy ? t('templates.saving') : t('templates.saveChanges')} />
             </div>
           )}
       </main>
