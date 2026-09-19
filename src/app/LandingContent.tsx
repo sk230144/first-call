@@ -13,7 +13,7 @@ export default function LandingContent() {
 
   const STEPS = [
     { title: t('lp.step1Title'), body: t('lp.step1Body'), icon: <IconShare />, tag: 'DISPATCH ENCRYPTED', active: false },
-    { title: t('lp.step2Title'), body: t('lp.step2Body'), icon: <IconCamera />, tag: 'WEBRTC STREAMING', active: true },
+    { title: t('lp.step2Title'), body: t('lp.step2Body'), icon: <IconCamera />, tag: 'VIDEO OR E-SIGN', active: true },
     { title: t('lp.step3Title'), body: t('lp.step3Body'), icon: <IconShield />, tag: 'IMMUTABLE ATTESTATION', active: false },
   ];
 
@@ -124,14 +124,14 @@ export default function LandingContent() {
           <div className="lp-bento-item">
             <div>
               <div className="lp-bento-title" style={{ marginBottom: 16 }}>
-                <span className="lp-bento-icon"><IconWave /></span>
+                <span className="lp-bento-icon"><IconSignature /></span>
                 <h3>{t('lp.featureVoiceTitle')}</h3>
               </div>
               <p>{t('lp.featureVoiceBody')}</p>
             </div>
             <div className="lp-bento-foot between">
-              <span>SNR THRESHOLD</span>
-              <span className="lp-cyan">&gt; 28 dB [PASS]</span>
+              <span>SIGNATURE TYPES</span>
+              <span className="lp-cyan">TYPED + DRAWN</span>
             </div>
           </div>
 
@@ -152,15 +152,15 @@ export default function LandingContent() {
           <div className="lp-bento-item span-2">
             <div>
               <div className="lp-bento-title" style={{ marginBottom: 16 }}>
-                <span className="lp-bento-icon"><IconCaption /></span>
+                <span className="lp-bento-icon"><IconDocument /></span>
                 <h3>{t('lp.featureCaptionsTitle')}</h3>
               </div>
               <p>{t('lp.featureCaptionsBody')}</p>
             </div>
             <div className="lp-bento-foot lp-bento-grid-3">
-              <span>CODEC: H.264 / AAC</span>
-              <span>STANDARD: SMPTE-12M</span>
-              <span className="lp-cyan">HARD-BURNED: TRUE</span>
+              <span>FORMAT: PDF/A4</span>
+              <span>GENERATION: INSTANT</span>
+              <span className="lp-cyan">DOWNLOAD: READY</span>
             </div>
           </div>
 
@@ -554,11 +554,12 @@ function IconSchema() {
   );
 }
 
-function IconWave() {
+function IconSignature() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
-      strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
-      <path d="M3 12h2M7 8v8M11 5v14M15 8.5v7M19 11h2" />
+      strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 17c2-4 3.5-6 5-6s1.5 3 3 3 3-5 5-5 1 3.5 3 2" />
+      <path d="M4 20h16" />
     </svg>
   );
 }
@@ -573,12 +574,13 @@ function IconCloud() {
   );
 }
 
-function IconCaption() {
+function IconDocument() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
       strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2.5" />
-      <path d="M8 14.5h3.5M14 14.5h2" />
+      <path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5z" />
+      <path d="M14 3.5V8h4.5" />
+      <path d="M8.5 12.5h7M8.5 15.5h4.5" />
     </svg>
   );
 }
